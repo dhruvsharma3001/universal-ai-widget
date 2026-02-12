@@ -1,6 +1,6 @@
 (function () {
   const CONFIG = {
-    // 🔴 CHANGE THIS TO YOUR VERCEL URL BEFORE DEPLOYING
+    // 🔴 CHANGE THIS TO YOUR VERCEL URL
     API_ENDPOINT: "https://universal-ai-widget.vercel.app/api/chat", 
     THEME_COLOR: "#00ffcc",
     BG_COLOR: "#050505",
@@ -10,6 +10,9 @@
   let recognition;
   let isListening = false;
   let synthesis = window.speechSynthesis;
+  
+  // Load Voice Setting (Default to TRUE if not set)
+  let voiceEnabled = localStorage.getItem("gemini_voice_enabled") !== "false"; 
 
   // --- 1. Load Dependencies ---
   if (!window.marked) {
@@ -18,15 +21,13 @@
     document.head.appendChild(script);
   }
 
-  // --- 2. Setup Speech Recognition (Browser Native) ---
+  // --- 2. Setup Speech Recognition ---
   if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
-  } else {
-    console.warn("Speech Recognition not supported in this browser.");
   }
 
   // --- 3. UI Construction ---
@@ -78,32 +79,40 @@
     .msg.user { background: #222; align-self: flex-end; margin-left: auto; color: #fff; }
     .msg.bot { background: transparent; border-left: 2px solid ${CONFIG.THEME_COLOR}; padding-left: 15px; }
 
-    /* Speaker Icon for Messages */
     .speak-btn {
       position: absolute; right: -25px; top: 50%; transform: translateY(-50%);
       cursor: pointer; opacity: 0.4; font-size: 16px; display: none;
     }
     .msg:hover .speak-btn { display: block; }
-    .speak-btn:hover { opacity: 1; transform: translateY(-50%) scale(1.2); }
 
-    /* Input Area & Mic */
+    /* Input Area */
     .input-area { padding: 15px; background: #111; border-top: 1px solid #222; display: flex; gap: 10px; align-items: center; }
     input { flex: 1; background: #222; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 6px; outline: none; }
     input:focus { border-color: ${CONFIG.THEME_COLOR}; }
     
     button { background: ${CONFIG.THEME_COLOR}; border: none; padding: 0 15px; font-weight: bold; cursor: pointer; border-radius: 6px; color: #000; height: 42px; }
-    button:disabled { opacity: 0.5; }
-
-    /* Mic Button Styles */
+    
+    /* Mic Button */
     #micBtn { background: #333; color: #fff; width: 42px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; }
     #micBtn.listening { background: #ff4444; color: white; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 68, 68, 0); } }
 
-    /* Settings */
+    /* Settings Panel */
     .settings-panel { position: absolute; inset: 0; background: rgba(10,10,10,0.98); z-index: 10; padding: 30px 20px; display: none; flex-direction: column; }
     .settings-panel.show { display: flex; }
     .settings-close-x { position: absolute; top: 15px; right: 15px; color: #fff; font-size: 28px; cursor: pointer; }
-    .settings-input-box { margin: 20px 0; padding: 15px; background: #000; border: 2px solid #333; color: ${CONFIG.THEME_COLOR}; border-radius: 8px; outline: none; width: 100%; }
+    
+    .settings-input-box { margin: 15px 0; padding: 15px; background: #000; border: 2px solid #333; color: ${CONFIG.THEME_COLOR}; border-radius: 8px; outline: none; width: 100%; }
+    
+    /* Toggle Switch Style */
+    .setting-row { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; padding: 10px; background: #1a1a1a; border-radius: 8px; }
+    .toggle-switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: ${CONFIG.THEME_COLOR}; }
+    input:checked + .slider:before { transform: translateX(26px); background-color: black; }
+
     #saveKeyBtn { width: 100%; padding: 15px; margin-top: auto; }
   `;
   shadow.appendChild(style);
@@ -119,14 +128,25 @@
 
       <div class="settings-panel" id="settingsPanel">
         <span class="settings-close-x" id="closeSettingsX">×</span>
-        <h3 style="color:#fff; margin:0;">API Key Setup</h3>
-        <p style="color:#aaa; font-size:13px; margin-top:10px;">Enter your Gemini API Key.</p>
+        
+        <h3 style="color:#fff; margin:0;">Configuration</h3>
+        
+        <p style="color:#aaa; font-size:13px; margin-top:15px;">Google Gemini API Key:</p>
         <input type="password" id="apiKeyInput" class="settings-input-box" placeholder="Paste Key here..." />
-        <button id="saveKeyBtn">Save Securely</button>
+
+        <div class="setting-row">
+          <span style="color:#fff; font-size:14px;">Auto-Read Responses</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="voiceToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <button id="saveKeyBtn">Save Settings</button>
       </div>
 
       <div class="messages" id="messages">
-        <div class="msg bot"><p>System Online. Speak or type.</p></div>
+        <div class="msg bot"><p>System Online. I am ready.</p></div>
       </div>
 
       <div class="input-area">
@@ -144,27 +164,29 @@
   const micBtn = shadow.querySelector("#micBtn");
   const settingsPanel = shadow.querySelector("#settingsPanel");
   const apiKeyInput = shadow.querySelector("#apiKeyInput");
+  const voiceToggle = shadow.querySelector("#voiceToggle");
   
   let userApiKey = localStorage.getItem("gemini_user_key") || "";
 
-  // Helper: Speak Text (Text-to-Speech)
+  // Initialize Toggle State
+  voiceToggle.checked = voiceEnabled;
+
+  // Helper: Speak Text
   const speakText = (text) => {
     if (!synthesis) return;
-    synthesis.cancel(); // Stop any previous speech
-    // Remove markdown symbols for cleaner speech
+    synthesis.cancel(); 
     const cleanText = text.replace(/[*#`_]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 1.1; // Slightly faster
-    utterance.pitch = 1;
+    utterance.rate = 1.1; 
     synthesis.speak(utterance);
   };
 
   // Helper: Typewriter Effect
-  async function typeWriter(element, text, autoSpeak = false) {
+  async function typeWriter(element, text, shouldSpeak) {
     const html = window.marked ? window.marked.parse(text) : text;
     element.innerHTML = html;
     
-    // Add Speaker Button to this message
+    // Always add manual speaker button
     const speakBtn = document.createElement("span");
     speakBtn.className = "speak-btn";
     speakBtn.innerHTML = "🔊";
@@ -179,10 +201,13 @@
         op += 0.1;
     }, 30);
 
-    if (autoSpeak) speakText(text);
+    // Only speak automatically if Setting is ENABLED
+    if (shouldSpeak && voiceEnabled) {
+        speakText(text);
+    }
   }
 
-  const addMessage = (text, sender, isLoading = false, autoSpeak = false) => {
+  const addMessage = (text, sender, isLoading = false) => {
     const div = document.createElement("div");
     div.className = `msg ${sender}`;
     messagesDiv.appendChild(div);
@@ -191,7 +216,9 @@
       return div;
     }
     if (sender === "bot") { 
-        typeWriter(div, text, autoSpeak); 
+        // We pass 'true' here to indicate this is a bot response capable of being spoken
+        // The typeWriter function will check the 'voiceEnabled' setting.
+        typeWriter(div, text, true); 
     } else { 
         div.innerText = text; 
     }
@@ -204,7 +231,7 @@
     return clone.innerText.replace(/\s+/g, " ").trim().substring(0, 8000);
   };
 
-  const handleSend = async (voiceTriggered = false) => {
+  const handleSend = async () => {
     const question = userInput.value.trim();
     if (!question) return;
     if (!userApiKey) { settingsPanel.classList.add("show"); return; }
@@ -232,8 +259,7 @@
       chatHistory.push({ role: "user", content: question });
       chatHistory.push({ role: "bot", content: data.answer });
       
-      // Auto-speak ONLY if the user used the microphone
-      addMessage(data.answer, "bot", false, voiceTriggered);
+      addMessage(data.answer, "bot");
 
     } catch (err) {
       messagesDiv.removeChild(loadingMsg);
@@ -243,14 +269,11 @@
 
   // --- 5. Event Listeners ---
   
-  // Mic Logic
+  // Mic Logic (Always available for Input, output depends on Toggle)
   if (recognition) {
     micBtn.addEventListener("click", () => {
-      if (isListening) {
-        recognition.stop();
-      } else {
-        recognition.start();
-      }
+      if (isListening) recognition.stop();
+      else recognition.start();
     });
 
     recognition.onstart = () => {
@@ -263,9 +286,7 @@
       isListening = false;
       micBtn.classList.remove("listening");
       userInput.placeholder = "Ask something...";
-      // Optional: Auto-send after silence? Let's keep it manual for safety, 
-      // or uncomment next line to auto-send:
-       if(userInput.value) handleSend(true); 
+      if(userInput.value) handleSend(); // Auto send on silence
     };
 
     recognition.onresult = (event) => {
@@ -273,23 +294,35 @@
       userInput.value = transcript;
     };
   } else {
-    micBtn.style.display = "none"; // Hide if browser doesn't support it
+    micBtn.style.display = "none"; 
   }
 
   shadow.querySelector(".launcher").addEventListener("click", () => shadow.querySelector(".chat-window").classList.toggle("open"));
   
+  // Settings Panel Logic
   shadow.querySelector("#settingsToggle").addEventListener("click", () => {
       settingsPanel.classList.add("show");
       apiKeyInput.value = userApiKey;
   });
   shadow.querySelector("#closeSettingsX").addEventListener("click", () => settingsPanel.classList.remove("show"));
   
+  // Save Settings
   shadow.querySelector("#saveKeyBtn").addEventListener("click", () => {
     const key = apiKeyInput.value.trim();
-    if(key) { localStorage.setItem("gemini_user_key", key); userApiKey = key; settingsPanel.classList.remove("show"); addMessage("Key Saved!", "bot"); }
+    if(key) { 
+        localStorage.setItem("gemini_user_key", key); 
+        userApiKey = key; 
+    }
+    
+    // Save Voice Toggle State
+    voiceEnabled = voiceToggle.checked;
+    localStorage.setItem("gemini_voice_enabled", voiceEnabled);
+
+    settingsPanel.classList.remove("show");
+    addMessage("Settings Saved!", "bot");
   });
 
-  shadow.querySelector("#sendBtn").addEventListener("click", () => handleSend(false));
-  userInput.addEventListener("keypress", (e) => { if (e.key === "Enter") handleSend(false); });
+  shadow.querySelector("#sendBtn").addEventListener("click", handleSend);
+  userInput.addEventListener("keypress", (e) => { if (e.key === "Enter") handleSend(); });
 
 })();
