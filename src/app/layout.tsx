@@ -26,6 +26,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
+        
+        {/* 👇 THIS IS THE MAGIC LINE 👇 */}
+        <script src="/ai-widget.js" defer></script>
+        
       </body>
     </html>
   );
