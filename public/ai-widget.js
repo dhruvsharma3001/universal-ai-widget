@@ -203,7 +203,7 @@
           <button class="icon-btn" id="sendBtn">➤</button>
         </div>
         <div style="text-align:center; margin-top:8px; font-size:11px; color:#444;">
-          Powered by Gemini • Context Aware
+          Made by Dhruv Sharma
         </div>
       </div>
     </div>
