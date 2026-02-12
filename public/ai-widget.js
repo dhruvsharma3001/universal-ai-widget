@@ -1,7 +1,7 @@
 (function () {
   const CONFIG = {
     // CHANGE THIS URL IF YOU DEPLOY TO VERCEL
-    API_ENDPOINT: "http://localhost:3000/api/chat", 
+    API_ENDPOINT: "https://universal-ai-widget.vercel.app/api/chat",
     THEME_COLOR: "#00ffcc",
     BG_COLOR: "#050505",
   };
